@@ -1,0 +1,80 @@
+# Experiment 5 — Ablation of the agentic design (RQ5)
+# The default point (qwen3.5:4b, 10 s, rule, on) is shared by 5a-5d: executed once, summarised once
+# per sub-experiment label (column sub_exp). 5e is optional (GPU host); 5f (optional) adds
+# gemma4:26b-a4b and phi4 as HiPS planners, chosen by an offline check.
+exp: 5
+title: Ablation of the agentic design
+summary: summary_exp5.csv
+key_params: [planner_model, plan_interval_s, subagent_mode, guardrail, infer_hw]
+seeds: [1, 2, 3, 4, 5]
+fixed:
+  n_ap: 4
+  n_sta: 30
+  speed_mps: 2.5
+  hotspot_size: 10
+  hotspot_start_s: 150
+  hotspot_end_s: 210
+  planner_model: qwen3.5:4b
+  plan_interval_s: 10
+  exec_interval_s: 1
+  subagent_mode: rule
+  guardrail: "on"
+  infer_hw: gpu
+  duration_s: 300
+  warmup_s: 30
+sub_experiments:
+  5a:
+    expected_runs: 45
+    grid:
+      variant:
+        - {framework: P_HIER_AGENT, planner_model: none_rule}
+        - {framework: P_HIER_AGENT, planner_model: qwen3.5:2b}
+        - {framework: P_HIER_AGENT, planner_model: qwen3.5:4b}
+        - {framework: P_HIER_AGENT, planner_model: phi3:mini}
+        - {framework: P_HIER_AGENT, planner_model: qwen3.5:9b}
+        - {framework: B2_FLAT_AGENT, planner_model: qwen3.5:2b}
+        - {framework: B2_FLAT_AGENT, planner_model: qwen3.5:4b}
+        - {framework: B2_FLAT_AGENT, planner_model: phi3:mini}
+        - {framework: B2_FLAT_AGENT, planner_model: qwen3.5:9b}
+  5b:
+    expected_runs: 25
+    grid:
+      plan_interval_s: [2, 5, 10, 20, 40]
+      framework: [P_HIER_AGENT]
+  5c:
+    expected_runs: 10
+    grid:
+      subagent_mode: [rule, slm]
+      framework: [P_HIER_AGENT]
+  5d:
+    expected_runs: 20
+    grid:
+      guardrail: ["on", "off"]
+      framework: [P_HIER_AGENT, B2_FLAT_AGENT]
+  5e:
+    optional: true            # run explicitly: ./experiment-5/run.sh 5e  (GPU Ollama host)
+    expected_runs: 10
+    fixed:
+      planner_model: qwen3.5:9b
+    grid:
+      infer_hw: [cpu, gpu]
+      framework: [P_HIER_AGENT]
+  5f:
+    optional: true            # Stage 2: planners from other families
+    expected_runs: 10
+    grid:
+      variant:
+        - {framework: P_HIER_AGENT, planner_model: gemma4:26b-a4b-it-q4_K_M}
+        - {framework: P_HIER_AGENT, planner_model: phi4}
+# Ollama Cloud (run.sh --cloud): 5a compares cloud models instead of local SLMs; 5b/5d use the
+# mapped default model; 5c (slm sub-agents stay local) and 5e (hardware) are not cloud experiments.
+cloud:
+  subs: [5a, 5b, 5d]
+  seeds: [1, 2, 3]
+  grid_override:
+    5a:
+      variant:
+        - {framework: P_HIER_AGENT, planner_model: gpt-oss:20b}
+        - {framework: P_HIER_AGENT, planner_model: gpt-oss:120b}
+        - {framework: B2_FLAT_AGENT, planner_model: gpt-oss:20b}
+        - {framework: B2_FLAT_AGENT, planner_model: gpt-oss:120b}

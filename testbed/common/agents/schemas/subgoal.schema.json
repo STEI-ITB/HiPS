@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Meta-Planner sub-goal tree (step-by-step §4.7); AP enums are specialised to n_ap at runtime",
+  "type": "object",
+  "required": ["plan"],
+  "additionalProperties": false,
+  "properties": {
+    "plan": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ap", "goals"],
+        "additionalProperties": false,
+        "properties": {
+          "ap": {"enum": ["ap1","ap2","ap3","ap4"]},
+          "goals": {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "oneOf": [
+                {"type": "object", "required": ["type", "count", "to"], "additionalProperties": false,
+                 "properties": {"type": {"const": "offload"},
+                                "count": {"type": "integer", "minimum": 1, "maximum": 5},
+                                "to": {"type": "array", "minItems": 1, "items": {"enum": ["ap1","ap2","ap3","ap4"]}},
+                                "prefer_slice": {"enum": ["best_effort", "video"]}}},
+                {"type": "object", "required": ["type", "dbm"], "additionalProperties": false,
+                 "properties": {"type": {"const": "set_power"},
+                                "dbm": {"type": "number", "minimum": 5, "maximum": 20}}},
+                {"type": "object", "required": ["type", "slice", "min_rate_mbps"], "additionalProperties": false,
+                 "properties": {"type": {"const": "protect_slice"},
+                                "slice": {"enum": ["telemedicine", "video"]},
+                                "min_rate_mbps": {"type": "number", "minimum": 1, "maximum": 20}}},
+                {"type": "object", "required": ["type", "slice", "max_rate_mbps"], "additionalProperties": false,
+                 "properties": {"type": {"const": "limit_slice"},
+                                "slice": {"enum": ["video", "best_effort"]},
+                                "max_rate_mbps": {"type": "number", "minimum": 1, "maximum": 20}}},
+                {"type": "object", "required": ["type"], "additionalProperties": false,
+                 "properties": {"type": {"const": "hold"}}}
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

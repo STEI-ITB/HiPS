@@ -1,0 +1,26 @@
+# Experiment 9 — offline prompt bench: APs and STAs varied separately.
+# No emulator, no root: synthetic states (common/agents/synthetic.py) sent to the GPU node with the
+# Meta-Planner and the Flat-Agent prompt; records prompt tokens, latency and schema validity.
+exp: 9
+title: Prompt scaling bench
+summary: summary_exp9.csv
+entry: experiment-1/slm_bench.py
+output_csv: 9_slm_scaling.csv
+key_params: [prompt_kind, bench_n_ap, bench_n_sta]
+needs_root: false
+needs_emulator: false
+seeds: [1]
+expected_runs: 10
+fixed:
+  planner_model: qwen3.5:4b
+  calls: 30
+grid:
+  size:
+    - {bench_n_ap: 4, bench_n_sta: 30}
+    - {bench_n_ap: 4, bench_n_sta: 45}
+    - {bench_n_ap: 4, bench_n_sta: 60}
+    - {bench_n_ap: 6, bench_n_sta: 30}
+    - {bench_n_ap: 9, bench_n_sta: 30}
+  prompt_kind:
+    - {prompt_kind: planner, framework: P_HIER_AGENT}
+    - {prompt_kind: flat, framework: B2_FLAT_AGENT}

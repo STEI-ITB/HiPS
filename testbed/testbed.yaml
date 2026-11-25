@@ -1,0 +1,59 @@
+# =====================================================================================
+# testbed.yaml — the ONE file you edit on a new testbed machine.
+# Everything here overrides common/defaults.yaml for every experiment.
+# The README explains how the paper's machines were set.
+# =====================================================================================
+
+# --- CPU partitioning. Use `lscpu -e` to see your cores. -------------
+# Each set should take whole physical cores, so no two workloads share a core. The paper's emulation host
+# used the overlay testbed.e1.yaml, which common/config.py merges over this file on a host named e1. On
+# another host, edit the sets below or add testbed.<hostname>.yaml. Example below: a 16-core / 32-thread
+# host (CPU n and n+16 are SMT siblings of core n) whose SLM calls go to a GPU node over the LAN.
+cores:
+  orch: "0-3,16-19"     # cores 0-3:  OS, orchestrator, telemetry collector, agents
+  emu: "4-15,20-31"     # cores 4-15: Mininet-WiFi, hostapd, wpa_supplicant, wmediumd, iperf3, irtt
+  llm: ""               # Ollama on this host (must match CPUAffinity in the ollama unit); empty if Ollama runs elsewhere
+  medium: ""            # optional dedicated core for wmediumd (e.g. "15" with emu "4-14,20-30", sibling 31 idle)
+  # generic 12-vCPU box: orch "0-1", emu "2-7", llm "8-11"; 8-vCPU laptop: "0-1", "2-5", "6-7"
+
+# --- LLM serving --------------------------------------------------------------------
+llm:
+  backend: local                     # local | cloud
+  host: http://127.0.0.1:11434       # Ollama server; the paper used a LAN GPU node (RTX 4090, Ollama 0.40.6)
+  gpu_host: ""                       # infer_hw=gpu server; empty = llm.host
+  cpu_num_gpu0: true                 # infer_hw=cpu (Exp 5e): same server, num_gpu=0 (CPU inference on the GPU node)
+  subagent_backend: local            # slm sub-agents (Exp 5c) stay on llm.host, never cloud
+  num_thread: 8                      # CPU threads of the Ollama host; only matters for the infer_hw=cpu point
+  keep_alive: -1                     # keep models resident (local only)
+  think: false                       # qwen3.5 thinks by default; off for planner/sub-agent calls
+  timeout_s: 120                     # per call
+  # --- Ollama Cloud (used only when backend: cloud) ---
+  cloud_host: https://ollama.com     # direct API; key read from env OLLAMA_API_KEY
+  # Map each local model name to the cloud model that replaces it when backend=cloud.
+  # VERIFY names at https://ollama.com/search?c=cloud before a campaign (they change).
+  cloud_model_map:
+    qwen3.5:2b: gpt-oss:20b
+    qwen3.5:4b: gpt-oss:20b
+    phi3:mini: gpt-oss:20b
+    qwen3.5:9b: gpt-oss:120b
+    qwen3.5:0.8b: gpt-oss:20b
+  cloud_think: low                   # reasoning effort for thinking models (low = fewer tokens)
+  # Budget: conservative caps so a Pro subscription is never exhausted. The runner reserves
+  # a run's expected calls BEFORE starting it and waits if the window is full.
+  cloud_budget:
+    requests_per_hour: 400
+    requests_per_day: 3000
+    requests_per_week: 12000
+    tokens_per_day: 4000000
+    cooldown_s: 900                  # sleep after HTTP 429 before retrying the run
+    max_failed_call_frac: 0.10       # > 10 % failed/429 calls in a run => run invalid, retried later
+    ledger: output/_cloud/ledger.jsonl   # relative to testbed/; shared by every run on this host
+
+# --- Paths --------------------------------------------------------------------------
+paths:
+  output: output                     # relative to testbed/
+  venv_python: .venv/bin/python      # python used under sudo (venv with --system-site-packages)
+  hostapd_ctrl: /var/run/hostapd
+
+# --- Run robustness -----------------------------------------------------------------
+max_attempts: 3                      # per run; then listed in failed_runs.csv and skipped

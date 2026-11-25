@@ -1,0 +1,130 @@
+ojsdn patches for wmediumd, as one diff against https://github.com/ramonfontes/wmediumd commit
+63e9fc995cfb260065c7a0d4c2b14f715f224436 (branch mininet-wifi). Same result as install/wmediumd_ojsdn.py,
+which the image build and install/patch-wmediumd.sh apply to that commit. Every change is opt-in
+through an environment variable that common/topo.py sets from the run configuration; with none set, wmediumd
+behaves as the original:
+  OJSDN_WMD_RCVBUF        receive buffer of the hwsim netlink socket (medium_rcvbuf_kb)
+  OJSDN_WMD_PER_CHANNEL   contention per channel instead of one medium for all radios (medium_per_channel)
+  OJSDN_WMD_MAXQ_US       bounded queue: a frame that would wait longer is dropped as a failed transmission
+                          (medium_max_queue_ms)
+  OJSDN_WMD_STATS         per-second counters of queued and dropped frames
+Apply in a wmediumd checkout:  patch -p1 < wmediumd-ojsdn.patch
+License: GPL-2.0-or-later, as wmediumd.
+--- a/wmediumd/wmediumd.c
++++ b/wmediumd/wmediumd.c
+@@ -38,6 +38,8 @@
+ #include <unistd.h>
+ #include <pthread.h>
+ #include <string.h>
++#include <stdlib.h>
++#include <sys/socket.h>
+ 
+ #include "wmediumd.h"
+ #include "ieee80211.h"
+@@ -46,6 +48,42 @@
+ #include "wmediumd_dynamic.h"
+ #include "wserver_messages.h"
+ 
++/* ojsdn patch: globals (see testbed/install/wmediumd_ojsdn.py) */
++static int ojsdn_per_channel = -1;      /* OJSDN_WMD_PER_CHANNEL */
++static long ojsdn_maxq_us = -1;         /* OJSDN_WMD_MAXQ_US, 0 = unbounded */
++static const char *ojsdn_stats_path;    /* OJSDN_WMD_STATS */
++static unsigned long long ojsdn_frames, ojsdn_maxq_drops;
++static time_t ojsdn_stats_last;
++void deliver_frame(struct wmediumd *ctx, struct frame *frame);   /* defined below queue_frame() */
++
++static void ojsdn_init(void)
++{
++	const char *e;
++	if (ojsdn_per_channel >= 0)
++		return;
++	e = getenv("OJSDN_WMD_PER_CHANNEL");
++	ojsdn_per_channel = e && atoi(e) > 0;
++	e = getenv("OJSDN_WMD_MAXQ_US");
++	ojsdn_maxq_us = e ? atol(e) : 0;
++	ojsdn_stats_path = getenv("OJSDN_WMD_STATS");
++}
++
++static void ojsdn_write_stats(const struct timespec *now)
++{
++	FILE *f;
++	char tmp[4096];
++	if (!ojsdn_stats_path || now->tv_sec == ojsdn_stats_last)
++		return;
++	ojsdn_stats_last = now->tv_sec;
++	snprintf(tmp, sizeof(tmp), "%s.tmp", ojsdn_stats_path);
++	f = fopen(tmp, "w");
++	if (!f)
++		return;
++	fprintf(f, "%llu %llu\n", ojsdn_frames, ojsdn_maxq_drops);
++	fclose(f);
++	rename(tmp, ojsdn_stats_path);
++}
++
+ struct sockaddr_in serverAddr, clientAddr;
+ socklen_t len;
+ void* out_buf;
+@@ -587,6 +625,7 @@
+ 	int rate_idx;
+ 	int ac;
+ 
++	ojsdn_init();
+ 	/* TODO configure phy parameters */
+ 	int slot_time = 9;
+ 	int sifs = 16;
+@@ -701,6 +740,9 @@
+             for (i = 0; i <= ac; i++) {
+                 tail = list_last_entry_or_null(&tmpsta->queues[i].frames,
+                                                struct frame, list);
++                /* ojsdn patch: per-channel contention (frames on other channels do not delay) */
++                if (tail && ojsdn_per_channel && tail->freq != frame->freq)
++                    continue;
+                 if (tail && timespec_before(&target, &tail->expires))
+                     target = tail->expires;
+             }
+@@ -710,6 +752,20 @@
+         }
+     }
+ 
++	/* ojsdn patch: bounded queue. A frame that would wait longer than OJSDN_WMD_MAXQ_US for the
++	 * medium is dropped as a failed transmission: not delivered, TX status without ACK. */
++	ojsdn_frames++;
++	if (ojsdn_maxq_us > 0) {
++		long wait_us = (target.tv_sec - now.tv_sec) * 1000000L + (target.tv_nsec - now.tv_nsec) / 1000;
++		if (wait_us > ojsdn_maxq_us) {
++			ojsdn_maxq_drops++;
++			frame->flags &= ~HWSIM_TX_STAT_ACK;
++			frame->duration = 0;
++			deliver_frame(ctx, frame);   /* reports the TX status and frees the frame */
++			return;
++		}
++	}
++
+ 	timespec_add_usec(&target, send_time);
+ 
+ 	frame->duration = send_time;
+@@ -989,6 +1045,7 @@
+ 			deliver_expired_frames_queue(ctx, &station->queues[i].frames, &now);
+ 	}
+ 	w_logf(ctx, LOG_DEBUG, "\n\n");
++	ojsdn_write_stats(&now);   /* ojsdn patch: stats */
+ 
+ 	if (!ctx->intf)
+ 		return;
+@@ -1329,6 +1386,16 @@
+ 		return -1;
+ 	}
+ 
++	/* ojsdn patch: optional receive buffer for the hwsim socket. libnl's default (32 KiB)
++	 * overflows on traffic bursts and the kernel drops frames silently; too large a buffer
++	 * under sustained overload turns drops into seconds of queueing, so it is opt-in. */
++	{
++		const char *env = getenv("OJSDN_WMD_RCVBUF");
++		int sz = env ? atoi(env) : 0;
++		if (sz > 0 && setsockopt(nl_socket_get_fd(sock), SOL_SOCKET, SO_RCVBUFFORCE, &sz, sizeof(sz)) < 0)
++			nl_socket_set_buffer_size(sock, sz, 0);
++	}
++
+ 	ctx->family_id = genl_ctrl_resolve(sock, "MAC80211_HWSIM");
+ 	if (ctx->family_id < 0) {
+ 		w_logf(ctx, LOG_ERR, "Family MAC80211_HWSIM not registered\n");

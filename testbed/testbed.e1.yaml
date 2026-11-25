@@ -1,0 +1,9 @@
+# Host overlay of the paper's emulation host e1 (i7-13700: 8 P-cores = CPUs 0-15, SMT siblings 2k/2k+1, up to 5.1-5.2 GHz;
+# 8 E-cores = CPUs 16-23, 4.1 GHz; 62 GB). Merged over testbed.yaml by common/config.py when the hostname
+# is "e1"; only the keys that differ. The campaign ran dockerized there (docker/ojsdn-docker.sh); every run
+# of the paper recorded testbed_overlay = testbed.e1.yaml.
+cores:
+  orch: "16-23"     # E-cores: orchestrator, telemetry collector, agents (LLM calls go to the GPU node)
+  emu: "0-15"       # P-cores: Mininet-WiFi, hostapd, wpa_supplicant, wmediumd, iperf3, irtt
+  llm: ""
+  medium: ""

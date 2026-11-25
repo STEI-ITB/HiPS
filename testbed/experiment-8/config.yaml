@@ -1,0 +1,54 @@
+# Experiment 8 — rules-only planner at scale. HiPS with planner_model none_rule at
+# the Exp 4 layouts 6/45 and 9/60 (same traces as Exp 4 seeds 1-5); 4/30 is Exp 5a's none_rule point.
+# Pools with Exp 4, so run it on the same host and image as Exp 4.
+#   8a  rules-only, 6/45 and 9/60, seeds 1-5
+#   8b  HiPS with qwen3.5:4b at 6/45 and 9/60, seeds 1-5, same batch as 8c
+#   8c  rules-only, same batch as 8b (tag suffix batchr1, distinct from 8a)
+exp: 8
+title: Rules-only planner at scale
+summary: summary_exp8.csv
+key_params: [n_ap, n_sta, planner_model]
+seeds: [1, 2, 3, 4, 5]
+shuffle_within_seed: true        # random (seeded) run order inside each seed block
+fixed:
+  framework: P_HIER_AGENT
+  planner_model: none_rule
+  speed_mps: 2.5
+  hotspot_size: auto          # = ceil(n_sta / 3) -> 15 / 20, as in Exp 4
+  hotspot_start_s: 150
+  hotspot_end_s: 210
+  plan_interval_s: 10
+  exec_interval_s: 1
+  subagent_mode: rule
+  guardrail: "on"
+  duration_s: 300
+  warmup_s: 30
+  setup_timeout_s: 300
+sub_experiments:
+  8a:
+    expected_runs: 10
+    grid:
+      layout:
+        - {n_ap: 6, n_sta: 45}
+        - {n_ap: 9, n_sta: 60}
+  8b:
+    optional: true
+    expected_runs: 10
+    key_params: [n_ap, n_sta, planner_model, batch]
+    fixed:
+      planner_model: qwen3.5:4b
+      batch: r1
+    grid:
+      layout:
+        - {n_ap: 6, n_sta: 45}
+        - {n_ap: 9, n_sta: 60}
+  8c:
+    optional: true
+    expected_runs: 10
+    key_params: [n_ap, n_sta, planner_model, batch]
+    fixed:
+      batch: r1
+    grid:
+      layout:
+        - {n_ap: 6, n_sta: 45}
+        - {n_ap: 9, n_sta: 60}

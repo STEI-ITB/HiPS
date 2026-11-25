@@ -1,0 +1,68 @@
+# Experiment 7 — one saturated cell next to cells with spare airtime.
+# Exp 3 geometry and timing (hotspot walks into ap2 at 60-70 s, dwells to 180 s; same traces as
+# Exp 3 for the same hotspot_size), but airtime instead of the HTB cap is the bottleneck:
+# ap_capacity_mbps 40 and paced best-effort flows (be_tcp_cap_mbps), so only the crowded cell saturates.
+#   7p  pilot (Unmanaged, seed 1, 3 load points)  -> choose hotspot_size / be_tcp_cap_mbps for 7m
+#   7m  main  (6 controllers x 10 seeds)
+# Run 7p first:  ./experiment-7/run.sh 7p ; check ap2's airtime and the SLA of the pilot runs ; then edit
+# 7m.fixed below and run ./experiment-7/run.sh 7m  (or queue "7m" in run-campaign.sh).
+exp: 7
+title: Saturated cell
+summary: summary_exp7.csv
+seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+shuffle_within_seed: true        # random controller order within each seed block (seeded)
+fixed:
+  n_ap: 4
+  n_sta: 30
+  speed_mps: 1.0
+  hotspot_start_s: 60
+  hotspot_end_s: 180
+  planner_model: qwen3.5:4b
+  plan_interval_s: 10
+  exec_interval_s: 1
+  subagent_mode: rule
+  guardrail: "on"
+  duration_s: 240
+  warmup_s: 30
+  ap_capacity_mbps: 40
+  bgscan_long_jitter_s: 5        # desynchronised background scans (30 +- 5 s per STA); 0 = as in the campaign
+sub_experiments:
+  7p:
+    optional: true               # not part of "7"; run explicitly as 7p
+    seeds: [1]
+    expected_runs: 8
+    key_params: [ctl, hotspot_size, be_tcp_cap_mbps]
+    # round 1: the first three points; none overloaded ap2 with spare neighbours.
+    # round 2: heavier hotspot, and the same with background scanning off (ctl noscan), because
+    # Exp 6 showed bgscan causes most telemedicine failures (64 -> 99.6 % all-flows SLA when off).
+    grid:
+      ctl:
+        - {ctl: none, framework: B0_UNMANAGED}
+      load:                       # later keys win: a load point may override ctl and bgscan
+        - {hotspot_size: 15, be_tcp_cap_mbps: 2}
+        - {hotspot_size: 20, be_tcp_cap_mbps: 2}
+        - {hotspot_size: 20, be_tcp_cap_mbps: 3}
+        - {hotspot_size: 25, be_tcp_cap_mbps: 2}
+        - {hotspot_size: 25, be_tcp_cap_mbps: 3}
+        - {hotspot_size: 20, be_tcp_cap_mbps: 2, ctl: noscan, bgscan_short_s: 3600, bgscan_long_s: 3600, bgscan_long_jitter_s: 0}
+        - {hotspot_size: 25, be_tcp_cap_mbps: 2, ctl: noscan, bgscan_short_s: 3600, bgscan_long_s: 3600, bgscan_long_jitter_s: 0}
+        - {hotspot_size: 25, be_tcp_cap_mbps: 3, ctl: noscan, bgscan_short_s: 3600, bgscan_long_s: 3600, bgscan_long_jitter_s: 0}
+  7m:
+    expected_runs: 60
+    key_params: [ctl]
+    fixed:
+      # pilot: with scanning off the crowd stays on its old APs (no hotspot at ap2), so
+      # scanning stays on, desynchronised (bgscan_long_jitter_s 5 above); hotspot 25 / BE 2 Mb/s gives
+      # ap2 0.52 vs 0.36 airtime for the busiest neighbour (12.7 vs <= 10.6 STAs), small SLA drop
+      hotspot_size: 25           # from the pilot
+      be_tcp_cap_mbps: 2         # from the pilot
+    grid:
+      ctl:
+        - {ctl: none, framework: B0_UNMANAGED}
+        - {ctl: heur, framework: B1_HEURISTIC}
+        # airtime is estimated as tx bits / PHY rate (no MAC overhead): a saturated cell reads ~0.45-0.5,
+        # so the LB thresholds come from the pilot (analyze_new_runs.py pilot, h25/be2: lb_hi 0.47, lb_lo 0.41)
+        - {ctl: airlb, framework: B1_HEURISTIC, heuristic_mode: airtime_lb, heuristic_airtime_hi: 0.47, heuristic_airtime_lo: 0.41}
+        - {ctl: flat, framework: B2_FLAT_AGENT}
+        - {ctl: hips, framework: P_HIER_AGENT}
+        - {ctl: rules, framework: P_HIER_AGENT, planner_model: none_rule}

@@ -1,0 +1,136 @@
+# Experiment 6 — bgscan diagnostic. Are the 40-s periodic telemedicine dips and the
+# 100-140 ms probe gaps without a handover caused by the STAs' background scans?
+# Exp 2 settings at 2.5 m/s (same traces as Exp 2), bgscan as configured vs effectively off.
+#   6a  diagnostic: Unmanaged, seeds 1-2, with per-STA wpa_cli / hostapd_cli logs
+#   6b  scanning OFF, all four campaign controllers, seeds 1-5
+#   6c  scanning ON, same 4 x 5, same batch (pairs with 6b)
+#   6d  Unmanaged, scanning ON but desynchronised (30 +- 5 s per STA), seeds 1-5;
+#       the synchronised arm is 6c's Unmanaged
+#   6e  Experiment 10a pilot: Unmanaged, scanning OFF, seed 1, path-loss exponent 3.4/3.7/4.0 (coverage pressure)
+#   6f  Experiment 10a main: scanning OFF at the exponent chosen from 6e, 5 controllers x seeds 1-5
+#   6g  Experiment 10a milder regime: as 6f at exponent 3.4
+# 6b-6g are optional (queue them explicitly) and use new ctl values, so they never collide with 6a.
+exp: 6
+title: bgscan diagnostic
+summary: summary_exp6.csv
+key_params: [ctl]
+seeds: [1, 2]
+shuffle_within_seed: true        # random (seeded) run order inside each seed block
+fixed:
+  n_ap: 4
+  n_sta: 30
+  speed_mps: 2.5
+  hotspot_size: 10
+  hotspot_start_s: 150
+  hotspot_end_s: 210
+  planner_model: qwen3.5:4b
+  plan_interval_s: 10
+  exec_interval_s: 1
+  subagent_mode: rule
+  guardrail: "on"
+  duration_s: 300
+  warmup_s: 30
+sub_experiments:
+  6a:
+    expected_runs: 4
+    fixed:
+      framework: B0_UNMANAGED
+      sta_debug_log: true
+      sta_debug_level: 2
+    grid:
+      ctl:
+        - {ctl: bgscan, bgscan_short_s: 5, bgscan_long_s: 30}        # as in the campaign (defaults)
+        - {ctl: nobgscan, bgscan_short_s: 3600, bgscan_long_s: 3600}  # no background scan within a run
+  6b:
+    optional: true
+    seeds: [1, 2, 3, 4, 5]
+    expected_runs: 20
+    grid:
+      ctl:
+        - {ctl: scanoff, bgscan_short_s: 3600, bgscan_long_s: 3600}
+      framework: [B0_UNMANAGED, B1_HEURISTIC, B2_FLAT_AGENT, P_HIER_AGENT]
+  6c:
+    optional: true
+    seeds: [1, 2, 3, 4, 5]
+    expected_runs: 20
+    grid:
+      ctl:
+        - {ctl: scanon, bgscan_short_s: 5, bgscan_long_s: 30}
+      framework: [B0_UNMANAGED, B1_HEURISTIC, B2_FLAT_AGENT, P_HIER_AGENT]
+  6d:
+    optional: true
+    seeds: [1, 2, 3, 4, 5]
+    expected_runs: 5
+    fixed:
+      framework: B0_UNMANAGED
+    grid:
+      ctl:
+        - {ctl: desync, bgscan_short_s: 5, bgscan_long_s: 30, bgscan_long_jitter_s: 5}
+  6e:
+    optional: true
+    seeds: [1]
+    expected_runs: 3
+    fixed:
+      framework: B0_UNMANAGED
+      bgscan_short_s: 3600
+      bgscan_long_s: 3600
+    grid:
+      ctl:
+        - {ctl: cov34, prop_exp: 3.4}
+        - {ctl: cov37, prop_exp: 3.7}
+        - {ctl: cov40, prop_exp: 4.0}
+  6f:
+    optional: true
+    seeds: [1, 2, 3, 4, 5]
+    expected_runs: 25
+    fixed:
+      bgscan_short_s: 3600
+      bgscan_long_s: 3600
+      prop_exp: 3.7                  # from the 6e pilot (Unmanaged seed 1: tele 4 %, video 57 %, BE 87 %, 0 roams)
+    grid:
+      ctl:
+        - {ctl: covnone, framework: B0_UNMANAGED}
+        - {ctl: covheur, framework: B1_HEURISTIC}
+        - {ctl: covflat, framework: B2_FLAT_AGENT}
+        - {ctl: covhips, framework: P_HIER_AGENT}
+        - {ctl: covrules, framework: P_HIER_AGENT, planner_model: none_rule}
+  6g:
+    optional: true
+    seeds: [1, 2, 3, 4, 5]
+    expected_runs: 25
+    fixed:
+      bgscan_short_s: 3600
+      bgscan_long_s: 3600
+      prop_exp: 3.4                  # milder 6e pilot level (Unmanaged seed 1: tele 86 %, video 98.5 %, BE 100 %)
+    grid:
+      ctl:
+        - {ctl: m34none, framework: B0_UNMANAGED}
+        - {ctl: m34heur, framework: B1_HEURISTIC}
+        - {ctl: m34flat, framework: B2_FLAT_AGENT}
+        - {ctl: m34hips, framework: P_HIER_AGENT}
+        - {ctl: m34rules, framework: P_HIER_AGENT, planner_model: none_rule}
+  6h:
+    optional: true
+    seeds: [1, 2, 3, 4, 5]
+    expected_runs: 10
+    fixed:
+      bgscan_short_s: 3600
+      bgscan_long_s: 3600
+      prop_exp: 3.7                  # as 6f
+      exec_offload_sustain: true     # offload goals active for the whole plan interval, same guardrail and RSSI floor
+    grid:
+      ctl:
+        - {ctl: cvships, framework: P_HIER_AGENT}
+        - {ctl: cvsrules, framework: P_HIER_AGENT, planner_model: none_rule}
+  6i:
+    optional: true
+    seeds: [1, 2, 3, 4, 5]
+    expected_runs: 5
+    fixed:
+      bgscan_short_s: 3600
+      bgscan_long_s: 3600
+      prop_exp: 3.7                  # as 6f
+      exec_interval_s: 10            # Heuristic loop period 10 s instead of 1 s (cadence ablation)
+    grid:
+      ctl:
+        - {ctl: cvheur10, framework: B1_HEURISTIC}

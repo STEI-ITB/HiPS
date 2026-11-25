@@ -1,0 +1,99 @@
+# Experiment 1 — Testbed calibration and tool/telemetry overhead
+exp: 1
+title: Testbed calibration and tool/telemetry overhead
+summary: summary_exp1.csv
+fixed:
+  framework: B0_UNMANAGED
+  hotspot_size: 0
+sub_experiments:
+  1a:   # radio calibration: 1 AP, 1 STA, distance x txpower, 5 reps (distances swept inside one topology)
+    entry: experiment-1/calib.py
+    output_csv: 1a_calibration.csv
+    key_params: [txpower_dbm]
+    seeds: [1, 2, 3, 4, 5]
+    expected_runs: 15
+    fixed:
+      n_ap: 1
+      n_sta: 1
+      speed_mps: 0.0
+      distances_m: [5, 10, 20, 30, 40, 50, 60]
+      udp_s: 30
+      tcp_s: 30
+      udp_rate_mbps: 50
+      settle_s: 5
+      capture_pcap: false        # true: tcpdump -i hwsim0 -> 1a_<tag>.pcap (large)
+    grid:
+      txpower_dbm: [5, 14, 20]
+  1e:   # 1a again with readiness checks (calib_robust): data path (ping + iperf3 server) before measuring,
+        # stale-position check after each move, one iperf3 repeat
+    optional: true
+    entry: experiment-1/calib.py
+    output_csv: 1e_calibration.csv
+    key_params: [ctl, txpower_dbm]
+    seeds: [1, 2, 3, 4, 5]
+    expected_runs: 15
+    fixed:
+      ctl: rob
+      calib_robust: true
+      calib_ready_timeout_s: 20
+      calib_reposition_max: 2
+      n_ap: 1
+      n_sta: 1
+      speed_mps: 0.0
+      distances_m: [5, 10, 20, 30, 40, 50, 60]
+      udp_s: 30
+      tcp_s: 30
+      udp_rate_mbps: 50
+      settle_s: 5
+      capture_pcap: false
+    grid:
+      txpower_dbm: [5, 14, 20]
+  1b:   # tool latency: 100 calls per tool on the default topology with background traffic
+    entry: common/run_one.py
+    output_csv: 1b_tool_latency.csv
+    key_params: []
+    seeds: [1]
+    expected_runs: 1
+    fixed:
+      speed_mps: 0.0
+      duration_s: 480
+      warmup_s: 10
+      calls_per_tool: 100
+      agent_entry: experiment-1/tool_bench.py
+      post_hook: experiment-1/tool_bench.py
+  1c:   # telemetry overhead
+    entry: common/run_one.py
+    output_csv: 1c_telemetry_overhead.csv
+    key_params: [telemetry_period_ms]
+    seeds: [1, 2, 3]
+    expected_runs: 12
+    fixed:
+      speed_mps: 1.0
+      duration_s: 120
+      warmup_s: 10
+      post_hook: experiment-1/telemetry_overhead.py
+    grid:
+      telemetry_period_ms: [100, 250, 500, 1000]
+  1d:   # SLM latency, no emulator
+    entry: experiment-1/slm_bench.py
+    output_csv: 1d_slm_latency.csv
+    key_params: [planner_model, prompt_kind]
+    needs_root: false
+    needs_emulator: false
+    seeds: [1]
+    expected_runs: 8
+    fixed:
+      calls: 30
+    grid:
+      planner_model: [qwen3.5:2b, qwen3.5:4b, phi3:mini, qwen3.5:9b]
+      prompt_kind:
+        - {prompt_kind: planner_n4, framework: P_HIER_AGENT}
+        - {prompt_kind: flat_n30, framework: B2_FLAT_AGENT}
+# Ollama Cloud (run.sh --cloud): only 1d uses an LLM. 10 calls per (model, prompt) keep it cheap;
+# planner_model values are looked up in llm.cloud_model_map (testbed.yaml), so list cloud names here.
+cloud:
+  subs: [1d]
+  fixed: {calls: 10}
+  grid_override:
+    1d:
+      planner_model: [gpt-oss:20b, gpt-oss:120b]

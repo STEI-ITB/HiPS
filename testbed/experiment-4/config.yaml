@@ -1,0 +1,28 @@
+# Experiment 4 — Scalability (RQ4)
+exp: 4
+title: Scalability
+summary: summary_exp4.csv
+key_params: [n_ap, n_sta]
+seeds: [1, 2, 3, 4, 5]
+expected_runs: 60
+fixed:
+  speed_mps: 2.5
+  hotspot_size: auto          # = ceil(n_sta / 3) -> 10 / 15 / 20
+  hotspot_start_s: 150
+  hotspot_end_s: 210
+  planner_model: qwen3.5:4b
+  plan_interval_s: 10
+  exec_interval_s: 1
+  subagent_mode: rule
+  guardrail: "on"
+  duration_s: 300
+  warmup_s: 30
+  setup_timeout_s: 300        # 69 radios take longer to associate
+grid:
+  layout:
+    - {n_ap: 4, n_sta: 30}
+    - {n_ap: 6, n_sta: 45}
+    - {n_ap: 9, n_sta: 60}
+  framework: [B0_UNMANAGED, B1_HEURISTIC, B2_FLAT_AGENT, P_HIER_AGENT]
+cloud:
+  seeds: [1, 2, 3]

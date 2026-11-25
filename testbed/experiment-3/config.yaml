@@ -1,0 +1,25 @@
+# Experiment 3 — Hotspot (flash-crowd) remediation (RQ2)
+exp: 3
+title: Hotspot remediation
+summary: summary_exp3.csv
+key_params: [hotspot_size]
+seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+expected_runs: 160
+fixed:
+  n_ap: 4
+  n_sta: 30
+  speed_mps: 1.0
+  hotspot_start_s: 60
+  hotspot_end_s: 180
+  planner_model: qwen3.5:4b
+  plan_interval_s: 10
+  exec_interval_s: 1
+  subagent_mode: rule
+  guardrail: "on"
+  duration_s: 240
+  warmup_s: 30
+grid:
+  hotspot_size: [5, 10, 15, 20]
+  framework: [B0_UNMANAGED, B1_HEURISTIC, B2_FLAT_AGENT, P_HIER_AGENT]
+cloud:
+  seeds: [1, 2, 3, 4, 5]

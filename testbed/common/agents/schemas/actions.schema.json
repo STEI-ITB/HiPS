@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Direct tool-call list (flat agent B2 and slm execution agents); AP enums specialised at runtime",
+  "type": "object",
+  "required": ["actions"],
+  "additionalProperties": false,
+  "properties": {
+    "thought": {"type": "string", "maxLength": 200},
+    "actions": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "oneOf": [
+          {"type": "object", "required": ["tool", "ap_id", "dbm"], "additionalProperties": false,
+           "properties": {"tool": {"const": "set_tx_power"},
+                          "ap_id": {"enum": ["ap1","ap2","ap3","ap4"]},
+                          "dbm": {"type": "number", "minimum": 5, "maximum": 20}}},
+          {"type": "object", "required": ["tool", "sta", "target_ap"], "additionalProperties": false,
+           "properties": {"tool": {"const": "trigger_bss_transition"},
+                          "sta": {"type": "string", "pattern": "^sta[0-9]+$"},
+                          "target_ap": {"enum": ["ap1","ap2","ap3","ap4"]}}},
+          {"type": "object", "required": ["tool", "ap_id", "slice", "rate_mbps"], "additionalProperties": false,
+           "properties": {"tool": {"const": "adjust_slice_bandwidth"},
+                          "ap_id": {"enum": ["ap1","ap2","ap3","ap4"]},
+                          "slice": {"enum": ["telemedicine", "video", "best_effort"]},
+                          "rate_mbps": {"type": "number", "minimum": 1, "maximum": 20}}}
+        ]
+      }
+    }
+  }
+}

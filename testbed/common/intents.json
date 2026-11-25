@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "slices": {
+    "telemedicine": {
+      "priority": 1, "fraction": 0.2, "dscp": 46, "tos": "0xB8", "htb_classid": "1:10", "htb_prio": 0,
+      "traffic": {"proto": "udp", "rate_mbps": 1.5, "pkt_bytes": 1200, "irtt_interval_ms": 20, "irtt_len": 160},
+      "intent": {"owd_p95_max_ms": 30, "jitter_max_ms": 4, "loss_max_pct": 1.0, "thr_min_mbps": 1.4},
+      "rate_floor_mbps": 2, "rate_ceil_mbps": 20
+    },
+    "video": {
+      "priority": 2, "fraction": 0.3, "dscp": 34, "tos": "0x88", "htb_classid": "1:20", "htb_prio": 1,
+      "traffic": {"proto": "udp", "rate_mbps": 2.5, "pkt_bytes": 1316},
+      "intent": {"owd_p95_max_ms": 100, "loss_max_pct": 2.0, "thr_min_mbps": 2.3},
+      "rate_floor_mbps": 1, "rate_ceil_mbps": 20
+    },
+    "best_effort": {
+      "priority": 3, "fraction": 0.5, "dscp": 0, "tos": "0x00", "htb_classid": "1:30", "htb_prio": 2,
+      "traffic": {"proto": "tcp", "cc": "cubic"},
+      "intent": {"ap_aggregate_thr_min_mbps": 2.0},
+      "rate_floor_mbps": 1, "rate_ceil_mbps": 20
+    }
+  }
+}

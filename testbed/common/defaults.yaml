@@ -1,0 +1,88 @@
+# Defaults for every run parameter, plus implementation constants.
+# This is the ONLY place where default values live. Override order:
+#   common/defaults.yaml  <  testbed.yaml  <  experiment-N/config.yaml (fixed)  <  grid point
+framework: P_HIER_AGENT
+n_ap: 4
+n_sta: 30
+speed_mps: 2.5
+hotspot_size: 10
+hotspot_start_s: 150
+hotspot_end_s: 210
+hotspot_target: ap2
+hotspot_arrive_s: 10          # cluster walks into the target cell within this time
+planner_model: qwen3.5:4b
+plan_interval_s: 10
+exec_interval_s: 1
+subagent_mode: rule           # rule | slm
+subagent_model: qwen3.5:0.8b
+subagent_num_predict: 320     # output cap of the slm sub-agents (was a hard-coded 160; 0.8b reached 157)
+guardrail: "on"               # on | off  (quoted: YAML would turn it into a boolean)
+btm_holddown_s: 10
+b1_holddown_s: 10             # B1 heuristic hold-down; 2 s made B1 collapse itself in pilot runs
+telemetry_period_ms: 100
+ap_capacity_mbps: 20
+be_tcp_cap_mbps: null        # pace each best-effort TCP flow (iperf3 -b, Mb/s); null = unpaced
+medium_rcvbuf_kb: 4096       # wmediumd hwsim netlink buffer (KiB; install/patch-wmediumd.sh); null = libnl's 32 KiB. 1 MiB still dropped bursts at 9 AP/60 STA in pilot runs
+medium_per_channel: true     # wmediumd contention per Wi-Fi channel (stock: all radios share one medium)
+medium_max_queue_ms: 100     # wmediumd drops a frame that would wait longer for the medium (stock: unbounded -> stalls)
+duration_s: 300
+warmup_s: 30
+seed: 1
+run_id: 1
+infer_hw: gpu                 # gpu | cpu (Exp 5e; cpu = llm.cpu_num_gpu0 on the GPU host)
+
+# --- radio / topology ---
+area_m: 120
+ap_spacing_m: 40
+ap_txpower_dbm: 14
+txpower_min_dbm: 5
+txpower_max_dbm: 20
+txpower_max_step_db: 3
+txpower_phys_min_dbm: 0       # physical clamp used when guardrail=off
+txpower_phys_max_dbm: 30
+mode: g
+ssid: campus
+passphrase: sla-campus-2026
+mobility_domain: a1b2
+prop_exp: 3.0
+prop_sL: 1
+antenna_gain_dbi: 5
+freq_ghz: 2.437
+rssi_min_target_dbm: -72      # executor / heuristic offload target threshold
+exec_offload_sustain: false   # Experiment 10a-sustained: offload goals steer one STA per tick while in the plan, no count limit
+bgscan_threshold_dbm: -70
+bgscan_short_s: 5
+bgscan_long_s: 30
+bgscan_long_jitter_s: 0       # per-STA long interval drawn from long ± jitter (seeded); 0 = all STAs alike
+sta_debug_log: false          # per-STA wpa_cli event log and raw hostapd_cli log in the run dir
+sta_debug_level: 2            # wpa_cli monitor level for sta_debug_log (2 = MSG_DEBUG, 3 = MSG_INFO)
+slice_shares_b0: {telemedicine: 0.4, video: 0.4, best_effort: 0.2}
+slice_fractions: {telemedicine: 0.2, video: 0.3, best_effort: 0.5}
+
+# --- mobility ---
+gm_alpha: 0.75
+speed_jitter: 0.10
+dt_ms: 100
+
+# --- KPI ---
+t_pingpong_s: 5
+ttr_consecutive: 3
+handover_lookback_s: 5
+
+# --- agents ---
+num_predict: 512             # LLM output cap; 256 truncated qwen3.5 2b/9b pretty-printed JSON (model bench)
+heuristic_mode: full          # full | airtime_lb (airtime-only load balancer with hysteresis) | lb (signal + airtime load balancer, Experiment 11)
+lb_rssi_lo_dbm: null          # heuristic_mode lb: steer a non-telemedicine STA below this RSSI (null = signal trigger off)
+flat_exec: false              # B2_FLAT_AGENT: true = decisions applied by HiPS's 1-s execution agents (Experiment 11)
+calib_robust: false           # experiment-1 calib.py: readiness and stale-position checks (1e)
+heuristic_airtime_hi: 0.8
+heuristic_airtime_lo: 0.6     # airtime_lb only: stop offloading below this; steer only to neighbours below it
+heuristic_cochannel_hi: 0.7
+heuristic_power_step_db: 2
+heuristic_shift_mbps: 2
+max_reprompts: 1
+
+# --- process / timing ---
+setup_timeout_s: 180          # time allowed for the topology to become READY
+tool_server_port: 5555
+max_attempts: 3

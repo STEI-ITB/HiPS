@@ -1,0 +1,102 @@
+# Experiment 11 (Stage 3) — confirmatory test where cross-AP control can matter. Comparisons, seeds and
+# decision rules are fixed before any run (see the paper); the only values set from data are the path-loss exponent
+# (11p, pilot seed 100) and the tuned load balancer (11t, tuning seeds 101-103). Test seeds 11-20 are
+# used by no other experiment.
+#   11m  medium check: stock vs patched wmediumd at light load, Unmanaged, seeds 1-3
+#   11p  pilot: Unmanaged, scanning on (desynchronised), exponent 3.7 and 4.0, seed 100
+#   11t  load-balancer tuning: 4 variants x seeds 101-103 at the 11p exponent
+#   11c  confirmatory main: 7 controllers x seeds 11-20 at the 11p exponent, random order per seed
+#   11f  main floor: Flat-Agent, Flat-Agent + 1-s executor, HiPS; Exp 2 at 2.5 m/s, seeds 1-10
+# Order: 11m, 11p -> set PROP_EXP below -> 11t -> set the tuned LB below -> 11c, 11f.
+exp: 11
+title: Confirmatory coverage pressure
+summary: summary_exp11.csv
+key_params: [ctl]
+shuffle_within_seed: true
+fixed:
+  n_ap: 4
+  n_sta: 30
+  speed_mps: 2.5
+  hotspot_size: 10
+  hotspot_start_s: 150
+  hotspot_end_s: 210
+  planner_model: qwen3.5:4b
+  plan_interval_s: 10
+  exec_interval_s: 1
+  subagent_mode: rule
+  guardrail: "on"
+  duration_s: 300
+  warmup_s: 30
+sub_experiments:
+  11m:
+    optional: true
+    seeds: [1, 2, 3]
+    expected_runs: 6
+    fixed:
+      framework: B0_UNMANAGED
+      n_sta: 12
+      speed_mps: 1.0
+      hotspot_size: 0
+      be_tcp_cap_mbps: 2            # paced BE: light load, so the stock medium should not overflow
+    grid:
+      ctl:
+        - {ctl: medpatched}          # defaults: 4 MiB buffer, per-channel contention, 100-ms queue bound
+        - {ctl: medstock, medium_rcvbuf_kb: null, medium_per_channel: false, medium_max_queue_ms: null}
+  11p:
+    optional: true
+    seeds: [100]
+    expected_runs: 2
+    fixed:
+      framework: B0_UNMANAGED
+      bgscan_short_s: 5
+      bgscan_long_s: 30
+      bgscan_long_jitter_s: 5       # clients roam on their own, scans desynchronised (as Exp 7)
+    grid:
+      ctl:
+        - {ctl: pil37, prop_exp: 3.7}
+        - {ctl: pil40, prop_exp: 4.0}
+  11t:
+    optional: true
+    seeds: [101, 102, 103]
+    expected_runs: 12
+    fixed:
+      framework: B1_HEURISTIC
+      heuristic_mode: lb
+      bgscan_short_s: 5
+      bgscan_long_s: 30
+      bgscan_long_jitter_s: 5
+      prop_exp: 3.7                 # PROP_EXP: rule R1 applied: 11p pil37 Unmanaged tele SLA 30.4 % < 50 % -> 3.7
+    grid:
+      ctl:
+        - {ctl: lbair, lb_rssi_lo_dbm: null, heuristic_airtime_hi: 0.47, heuristic_airtime_lo: 0.41}
+        - {ctl: lbr78, lb_rssi_lo_dbm: -78, heuristic_airtime_hi: 0.47, heuristic_airtime_lo: 0.41}
+        - {ctl: lbr75, lb_rssi_lo_dbm: -75, heuristic_airtime_hi: 0.47, heuristic_airtime_lo: 0.41}
+        - {ctl: lbr72, lb_rssi_lo_dbm: -72, heuristic_airtime_hi: 0.47, heuristic_airtime_lo: 0.41}
+  11c:
+    optional: true
+    seeds: [11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+    expected_runs: 70
+    fixed:
+      bgscan_short_s: 5
+      bgscan_long_s: 30
+      bgscan_long_jitter_s: 5
+      prop_exp: 3.7                 # PROP_EXP: as 11t (rule R1, 11p)
+    grid:
+      ctl:
+        - {ctl: cnone, framework: B0_UNMANAGED}
+        - {ctl: cheur, framework: B1_HEURISTIC}
+        # TUNED LB: rule R2 applied: 11t winner lbr78 (mean tele SLA 32.5 % vs lbair 31.4 %, lbr72 30.7 %, lbr75 28.9 %; seeds 101-103)
+        - {ctl: clbt, framework: B1_HEURISTIC, heuristic_mode: lb, lb_rssi_lo_dbm: -78, heuristic_airtime_hi: 0.47, heuristic_airtime_lo: 0.41}
+        - {ctl: cflat, framework: B2_FLAT_AGENT}
+        - {ctl: cflatx, framework: B2_FLAT_AGENT, flat_exec: true}
+        - {ctl: chips, framework: P_HIER_AGENT}
+        - {ctl: crules, framework: P_HIER_AGENT, planner_model: none_rule}
+  11f:
+    optional: true
+    seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    expected_runs: 30
+    grid:                           # Experiment 2 at 2.5 m/s (same traces), scanning as in the campaign
+      ctl:
+        - {ctl: fflat, framework: B2_FLAT_AGENT}
+        - {ctl: fflatx, framework: B2_FLAT_AGENT, flat_exec: true}
+        - {ctl: fhips, framework: P_HIER_AGENT}

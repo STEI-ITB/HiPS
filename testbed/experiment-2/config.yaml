@@ -1,0 +1,27 @@
+# Experiment 2 — Framework comparison under mobility (main result; RQ1, RQ3)
+exp: 2
+title: Framework comparison under mobility
+summary: summary_exp2.csv
+key_params: [speed_mps]
+seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+expected_runs: 120
+fixed:
+  n_ap: 4
+  n_sta: 30
+  hotspot_size: 10
+  hotspot_start_s: 150
+  hotspot_end_s: 210
+  planner_model: qwen3.5:4b
+  plan_interval_s: 10
+  exec_interval_s: 1
+  subagent_mode: rule
+  guardrail: "on"
+  duration_s: 300
+  warmup_s: 30
+grid:                    # order = loop nesting (seed outermost, framework innermost)
+  speed_mps: [1.0, 2.5, 4.0]
+  framework: [B0_UNMANAGED, B1_HEURISTIC, B2_FLAT_AGENT, P_HIER_AGENT]
+# Ollama Cloud (run.sh --cloud): B2/P runs use the cloud planner; B0/B1 runs are shared with the
+# local campaign (no LLM). 5 seeds -> 30 cloud runs, ~1000 calls (see `run.sh --status --cloud`).
+cloud:
+  seeds: [1, 2, 3, 4, 5]
